@@ -974,49 +974,51 @@ impl Fingerprint {
             pkg_root, max_path, max_mtime
         );
 
-        for dep in self.deps.iter() {
-            let dep_mtimes = match &dep.fingerprint.fs_status {
-                FsStatus::UpToDate { mtimes } => mtimes,
-                // If our dependency is stale, so are we, so bail out.
-                FsStatus::Stale => return Ok(()),
-            };
+        if target_root != Path::new("/Users/hackzzila/Documents/Code/Rust/cargo-test/testdeps") {
+            for dep in self.deps.iter() {
+                let dep_mtimes = match &dep.fingerprint.fs_status {
+                    FsStatus::UpToDate { mtimes } => mtimes,
+                    // If our dependency is stale, so are we, so bail out.
+                    FsStatus::Stale => return Ok(()),
+                };
 
-            // If our dependency edge only requires the rmeta file to be present
-            // then we only need to look at that one output file, otherwise we
-            // need to consider all output files to see if we're out of date.
-            let (dep_path, dep_mtime) = if dep.only_requires_rmeta {
-                dep_mtimes
-                    .iter()
-                    .find(|(path, _mtime)| {
-                        path.extension().and_then(|s| s.to_str()) == Some("rmeta")
-                    })
-                    .expect("failed to find rmeta")
-            } else {
-                match dep_mtimes.iter().max_by_key(|kv| kv.1) {
-                    Some(dep_mtime) => dep_mtime,
-                    // If our dependencies is up to date and has no filesystem
-                    // interactions, then we can move on to the next dependency.
-                    None => continue,
-                }
-            };
-            debug!(
-                "max dep mtime for {:?} is {:?} {}",
-                pkg_root, dep_path, dep_mtime
-            );
-
-            // If the dependency is newer than our own output then it was
-            // recompiled previously. We transitively become stale ourselves in
-            // that case, so bail out.
-            //
-            // Note that this comparison should probably be `>=`, not `>`, but
-            // for a discussion of why it's `>` see the discussion about #5918
-            // below in `find_stale`.
-            if dep_mtime > max_mtime {
-                info!(
-                    "dependency on `{}` is newer than we are {} > {} {:?}",
-                    dep.name, dep_mtime, max_mtime, pkg_root
+                // If our dependency edge only requires the rmeta file to be present
+                // then we only need to look at that one output file, otherwise we
+                // need to consider all output files to see if we're out of date.
+                let (dep_path, dep_mtime) = if dep.only_requires_rmeta {
+                    dep_mtimes
+                        .iter()
+                        .find(|(path, _mtime)| {
+                            path.extension().and_then(|s| s.to_str()) == Some("rmeta")
+                        })
+                        .expect("failed to find rmeta")
+                } else {
+                    match dep_mtimes.iter().max_by_key(|kv| kv.1) {
+                        Some(dep_mtime) => dep_mtime,
+                        // If our dependencies is up to date and has no filesystem
+                        // interactions, then we can move on to the next dependency.
+                        None => continue,
+                    }
+                };
+                debug!(
+                    "max dep mtime for {:?} is {:?} {}",
+                    pkg_root, dep_path, dep_mtime
                 );
-                return Ok(());
+
+                // If the dependency is newer than our own output then it was
+                // recompiled previously. We transitively become stale ourselves in
+                // that case, so bail out.
+                //
+                // Note that this comparison should probably be `>=`, not `>`, but
+                // for a discussion of why it's `>` see the discussion about #5918
+                // below in `find_stale`.
+                if dep_mtime > max_mtime {
+                    info!(
+                        "dependency on `{}` is newer than we are {} > {} {:?}",
+                        dep.name, dep_mtime, max_mtime, pkg_root
+                    );
+                    return Ok(());
+                }
             }
         }
 
@@ -1191,7 +1193,7 @@ fn calculate(cx: &mut Context<'_, '_>, unit: &Unit) -> CargoResult<Arc<Fingerpri
 
     // After we built the initial `Fingerprint` be sure to update the
     // `fs_status` field of it.
-    let target_root = target_root(cx);
+    let target_root = target_root(cx, unit);
     fingerprint.check_filesystem(&mut cx.mtime_cache, unit.pkg.root(), &target_root)?;
 
     let fingerprint = Arc::new(fingerprint);
@@ -1219,7 +1221,7 @@ fn calculate_normal(cx: &mut Context<'_, '_>, unit: &Unit) -> CargoResult<Finger
     deps.sort_by(|a, b| a.pkg_id.cmp(&b.pkg_id));
 
     // Afterwards calculate our own fingerprint information.
-    let target_root = target_root(cx);
+    let target_root = target_root(cx, unit);
     let local = if unit.mode.is_doc() {
         // rustdoc does not have dep-info files.
         let fingerprint = pkg_fingerprint(cx.bcx, &unit.pkg).chain_err(|| {
@@ -1414,7 +1416,7 @@ fn build_script_local_fingerprints(
     // longstanding bug, in Cargo. Recent refactorings just made it painfully
     // obvious.
     let pkg_root = unit.pkg.root().to_path_buf();
-    let target_dir = target_root(cx);
+    let target_dir = target_root(cx, unit);
     let calculate =
         move |deps: &BuildDeps, pkg_fingerprint: Option<&dyn Fn() -> CargoResult<String>>| {
             if deps.rerun_if_changed.is_empty() && deps.rerun_if_env_changed.is_empty() {
@@ -1547,8 +1549,12 @@ pub fn dep_info_loc(cx: &mut Context<'_, '_>, unit: &Unit) -> PathBuf {
 
 /// Returns an absolute path that target directory.
 /// All paths are rewritten to be relative to this.
-fn target_root(cx: &Context<'_, '_>) -> PathBuf {
-    cx.bcx.ws.target_dir().into_path_unlocked()
+fn target_root(cx: &Context<'_, '_>, unit: &Unit) -> PathBuf {
+    if unit.target.is_lib() && !unit.pkg.has_custom_build() {
+        PathBuf::from("/Users/hackzzila/Documents/Code/Rust/cargo-test/testdeps")
+    } else {
+        cx.bcx.ws.target_dir().into_path_unlocked()
+    }
 }
 
 fn compare_old_fingerprint(

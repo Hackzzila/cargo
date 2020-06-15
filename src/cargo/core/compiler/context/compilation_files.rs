@@ -208,16 +208,37 @@ impl<'a, 'cfg: 'a> CompilationFiles<'a, 'cfg> {
         self.host.deps()
     }
 
+    pub fn cacheable(&self, unit: &Unit) -> bool {
+        unit.target.is_lib() && !unit.pkg.has_custom_build()
+    }
+
+    pub fn target_deps_dir(&self, unit: &Unit) -> &Path {
+        self.layout(unit.kind).deps()
+    }
+
+    pub fn cache_deps_dir(&self) -> &Path {
+        Path::new("/Users/hackzzila/Documents/Code/Rust/cargo-test/testdeps/deps")
+    }
+
     /// Returns the directories where Rust crate dependencies are found for the
     /// specified unit.
     pub fn deps_dir(&self, unit: &Unit) -> &Path {
-        self.layout(unit.kind).deps()
+        if self.cacheable(unit) {
+            self.cache_deps_dir()
+        } else {
+            self.target_deps_dir(unit)
+        }
     }
 
     /// Directory where the fingerprint for the given unit should go.
     pub fn fingerprint_dir(&self, unit: &Unit) -> PathBuf {
         let dir = self.pkg_dir(unit);
-        self.layout(unit.kind).fingerprint().join(dir)
+
+        if self.cacheable(unit) {
+            PathBuf::from("/Users/hackzzila/Documents/Code/Rust/cargo-test/testdeps/.fingerprint").join(dir)
+        } else {
+            self.layout(unit.kind).fingerprint().join(dir)
+        }
     }
 
     /// Returns the path for a file in the fingerprint directory.

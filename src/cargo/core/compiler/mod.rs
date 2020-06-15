@@ -958,7 +958,13 @@ fn build_deps_args(
     let bcx = cx.bcx;
     cmd.arg("-L").arg(&{
         let mut deps = OsString::from("dependency=");
-        deps.push(cx.files().deps_dir(unit));
+        deps.push(cx.files().target_deps_dir(unit));
+        deps
+    });
+
+    cmd.arg("-L").arg(&{
+        let mut deps = OsString::from("dependency=");
+        deps.push(cx.files().cache_deps_dir());
         deps
     });
 
