@@ -439,7 +439,7 @@ pub fn prepare_target(cx: &mut Context<'_, '_>, unit: &Unit, force: bool) -> Car
         let build_script_outputs = Arc::clone(&cx.build_script_outputs);
         let pkg_id = unit.pkg.package_id();
         let metadata = cx.get_run_build_script_metadata(unit);
-        let (gen_local, _overridden) = build_script_local_fingerprints(cx, unit);
+        let (gen_local, _overridden) = build_script_local_fingerprints(cx, unit)?;
         let output_path = cx.build_explicit_deps[unit].build_script_output.clone();
         Work::new(move |_| {
             let outputs = build_script_outputs.lock().unwrap();
@@ -1191,7 +1191,7 @@ fn calculate(cx: &mut Context<'_, '_>, unit: &Unit) -> CargoResult<Arc<Fingerpri
 
     // After we built the initial `Fingerprint` be sure to update the
     // `fs_status` field of it.
-    let target_root = target_root(cx, unit);
+    let target_root = target_root(cx, unit)?;
     fingerprint.check_filesystem(&mut cx.mtime_cache, unit.pkg.root(), &target_root)?;
 
     let fingerprint = Arc::new(fingerprint);
@@ -1219,7 +1219,7 @@ fn calculate_normal(cx: &mut Context<'_, '_>, unit: &Unit) -> CargoResult<Finger
     deps.sort_by(|a, b| a.pkg_id.cmp(&b.pkg_id));
 
     // Afterwards calculate our own fingerprint information.
-    let target_root = target_root(cx, unit);
+    let target_root = target_root(cx, unit)?;
     let local = if unit.mode.is_doc() {
         // rustdoc does not have dep-info files.
         let fingerprint = pkg_fingerprint(cx.bcx, &unit.pkg).chain_err(|| {
@@ -1300,7 +1300,7 @@ fn calculate_run_custom_build(cx: &mut Context<'_, '_>, unit: &Unit) -> CargoRes
     // the build script this means we'll be watching files and env vars.
     // Otherwise if we haven't previously executed it we'll just start watching
     // the whole crate.
-    let (gen_local, overridden) = build_script_local_fingerprints(cx, unit);
+    let (gen_local, overridden) = build_script_local_fingerprints(cx, unit)?;
     let deps = &cx.build_explicit_deps[unit];
     let local = (gen_local)(
         deps,
@@ -1381,7 +1381,7 @@ fn calculate_run_custom_build(cx: &mut Context<'_, '_>, unit: &Unit) -> CargoRes
 fn build_script_local_fingerprints(
     cx: &mut Context<'_, '_>,
     unit: &Unit,
-) -> (
+) -> CargoResult<(
     Box<
         dyn FnOnce(
                 &BuildDeps,
@@ -1390,20 +1390,20 @@ fn build_script_local_fingerprints(
             + Send,
     >,
     bool,
-) {
+)> {
     assert!(unit.mode.is_run_custom_build());
     // First up, if this build script is entirely overridden, then we just
     // return the hash of what we overrode it with. This is the easy case!
     if let Some(fingerprint) = build_script_override_fingerprint(cx, unit) {
         debug!("override local fingerprints deps {}", unit.pkg);
-        return (
+        return Ok((
             Box::new(
                 move |_: &BuildDeps, _: Option<&dyn Fn() -> CargoResult<String>>| {
                     Ok(Some(vec![fingerprint]))
                 },
             ),
             true, // this is an overridden build script
-        );
+        ));
     }
 
     // ... Otherwise this is a "real" build script and we need to return a real
@@ -1414,7 +1414,7 @@ fn build_script_local_fingerprints(
     // longstanding bug, in Cargo. Recent refactorings just made it painfully
     // obvious.
     let pkg_root = unit.pkg.root().to_path_buf();
-    let target_dir = target_root(cx, unit);
+    let target_dir = target_root(cx, unit)?;
     let calculate =
         move |deps: &BuildDeps, pkg_fingerprint: Option<&dyn Fn() -> CargoResult<String>>| {
             if deps.rerun_if_changed.is_empty() && deps.rerun_if_env_changed.is_empty() {
@@ -1448,7 +1448,7 @@ fn build_script_local_fingerprints(
         };
 
     // Note that `false` == "not overridden"
-    (Box::new(calculate), false)
+    Ok((Box::new(calculate), false))
 }
 
 /// Create a `LocalFingerprint` for an overridden build script.
@@ -1547,11 +1547,11 @@ pub fn dep_info_loc(cx: &mut Context<'_, '_>, unit: &Unit) -> PathBuf {
 
 /// Returns an absolute path that target directory.
 /// All paths are rewritten to be relative to this.
-fn target_root(cx: &Context<'_, '_>, unit: &Unit) -> PathBuf {
-    if cx.bcx.config.cache_dir().is_ok() && cx.bcx.config.cache_dir().unwrap().is_some() && unit.cacheable() {
-        cx.bcx.config.cache_dir().unwrap().unwrap().into_path_unlocked()
+fn target_root(cx: &Context<'_, '_>, unit: &Unit) -> CargoResult<PathBuf> {
+    if cx.bcx.config.cache_dir()?.is_some() && unit.cacheable() {
+        Ok(cx.bcx.config.cache_dir()?.unwrap().into_path_unlocked())
     } else {
-        cx.bcx.ws.target_dir().into_path_unlocked()
+        Ok(cx.bcx.ws.target_dir().into_path_unlocked())
     }
 }
 
