@@ -273,7 +273,11 @@ impl<'a, 'cfg: 'a> CompilationFiles<'a, 'cfg> {
         assert!(!unit.mode.is_run_custom_build());
         assert!(self.metas.contains_key(unit));
         let dir = self.pkg_dir(unit);
-        self.layout(CompileKind::Host).build().join(dir)
+        if self.cache_layout.is_some() && unit.cacheable() {
+            self.cache_layout.as_ref().unwrap().build().join(dir)
+        } else {
+            self.layout(CompileKind::Host).build().join(dir)
+        }
     }
 
     /// Returns the directory where information about running a build script
@@ -283,7 +287,11 @@ impl<'a, 'cfg: 'a> CompilationFiles<'a, 'cfg> {
         assert!(unit.target.is_custom_build());
         assert!(unit.mode.is_run_custom_build());
         let dir = self.pkg_dir(unit);
-        self.layout(unit.kind).build().join(dir)
+        if self.cache_layout.is_some() && unit.cacheable() {
+            self.cache_layout.as_ref().unwrap().build().join(dir)
+        } else {
+            self.layout(unit.kind).build().join(dir)
+        }
     }
 
     /// Returns the "OUT_DIR" directory for running a build script.
