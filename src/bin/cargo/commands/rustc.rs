@@ -27,6 +27,7 @@ pub fn cli() -> App {
         .arg_features()
         .arg_target_triple("Target triple which compiles will be for")
         .arg_target_dir()
+        .arg_cache_dir()
         .arg_manifest_path()
         .arg_message_format()
         .arg_unit_graph()

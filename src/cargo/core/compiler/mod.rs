@@ -10,6 +10,7 @@ mod fingerprint;
 mod job;
 mod job_queue;
 mod layout;
+mod cache_layout;
 mod links;
 mod lto;
 mod output_depinfo;
@@ -962,11 +963,13 @@ fn build_deps_args(
         deps
     });
 
-    cmd.arg("-L").arg(&{
-        let mut deps = OsString::from("dependency=");
-        deps.push(cx.files().cache_deps_dir());
-        deps
-    });
+    if let Some(cahce_deps_dir) = cx.files().cache_deps_dir() {
+        cmd.arg("-L").arg(&{
+            let mut deps = OsString::from("dependency=");
+            deps.push(cahce_deps_dir);
+            deps
+        });
+    }
 
     // Be sure that the host path is also listed. This'll ensure that proc macro
     // dependencies are correctly found (for reexported macros).

@@ -81,6 +81,13 @@ impl UnitInner {
     pub fn show_warnings(&self, config: &Config) -> bool {
         self.is_local() || config.extra_verbose()
     }
+
+    /// Returns whether or not the unit should be cached by the system wide build cache.
+    pub fn cacheable(&self) -> bool {
+        self.target.is_lib()
+            && self.pkg.package_id().source_id().is_default_registry()
+            && !self.pkg.has_custom_build()
+    }
 }
 
 impl Unit {

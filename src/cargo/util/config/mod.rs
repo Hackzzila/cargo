@@ -161,6 +161,8 @@ pub struct Config {
     creation_time: Instant,
     /// Target Directory via resolved Cli parameter
     target_dir: Option<Filesystem>,
+    /// Cache Directory via resolved Cli parameter
+    cache_dir: Option<Filesystem>,
     /// Environment variables, separated to assist testing.
     env: HashMap<String, String>,
     /// Tracks which sources have been updated to avoid multiple updates.
@@ -236,6 +238,7 @@ impl Config {
             cache_rustc_info,
             creation_time: Instant::now(),
             target_dir: None,
+            cache_dir: None,
             env,
             updated_sources: LazyCell::new(),
             package_cache_lock: RefCell::new(None),
@@ -446,6 +449,22 @@ impl Config {
         } else if let Some(dir) = env::var_os("CARGO_TARGET_DIR") {
             Ok(Some(Filesystem::new(self.cwd.join(dir))))
         } else if let Some(val) = &self.build_config()?.target_dir {
+            let val = val.resolve_path(self);
+            Ok(Some(Filesystem::new(val)))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// The `cache` output directory to use.
+    ///
+    /// Returns `None` if the user has not chosen an explicit directory.
+    pub fn cache_dir(&self) -> CargoResult<Option<Filesystem>> {
+        if let Some(dir) = &self.cache_dir {
+            Ok(Some(dir.clone()))
+        } else if let Some(dir) = env::var_os("CARGO_CACHE_DIR") {
+            Ok(Some(Filesystem::new(self.cwd.join(dir))))
+        } else if let Some(val) = &self.build_config()?.cache_dir {
             let val = val.resolve_path(self);
             Ok(Some(Filesystem::new(val)))
         } else {
@@ -685,6 +704,7 @@ impl Config {
         locked: bool,
         offline: bool,
         target_dir: &Option<PathBuf>,
+        cache_dir: &Option<PathBuf>,
         unstable_flags: &[String],
         cli_config: &[String],
     ) -> CargoResult<()> {
@@ -729,6 +749,11 @@ impl Config {
             None => None,
         };
 
+        let cli_cache_dir = match cache_dir.as_ref() {
+            Some(dir) => Some(Filesystem::new(dir.clone())),
+            None => None,
+        };
+
         self.shell().set_verbosity(verbosity);
         self.shell().set_color_choice(color)?;
         self.extra_verbose = extra_verbose;
@@ -741,6 +766,7 @@ impl Config {
                 .and_then(|n| n.offline)
                 .unwrap_or(false);
         self.target_dir = cli_target_dir;
+        self.cache_dir = cli_cache_dir;
 
         if nightly_features_allowed() {
             if let Some(val) = self.get::<Option<bool>>("unstable.mtime_on_use")? {
@@ -1738,6 +1764,7 @@ pub struct CargoBuildConfig {
     pub rustc: Option<PathBuf>,
     pub rustdoc: Option<PathBuf>,
     pub out_dir: Option<ConfigRelativePath>,
+    pub cache_dir: Option<ConfigRelativePath>,
 }
 
 /// A type to deserialize a list of strings from a toml file.

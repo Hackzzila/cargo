@@ -931,11 +931,14 @@ impl Fingerprint {
     /// it to `UpToDate` if it can.
     fn check_filesystem(
         &mut self,
-        mtime_cache: &mut HashMap<PathBuf, FileTime>,
+        cx: &mut Context<'_, '_>,
+        // mtime_cache: &mut HashMap<PathBuf, FileTime>,
         pkg_root: &Path,
         target_root: &Path,
     ) -> CargoResult<()> {
         assert!(!self.fs_status.up_to_date());
+
+        let mtime_cache = &mut cx.mtime_cache;
 
         let mut mtimes = HashMap::new();
 
@@ -974,7 +977,7 @@ impl Fingerprint {
             pkg_root, max_path, max_mtime
         );
 
-        if target_root != Path::new("/Users/hackzzila/Documents/Code/Rust/cargo-test/testdeps") {
+        if Some(target_root) != cx.bcx.config.cache_dir()?.as_ref().map_or(None, |c| Some(c.as_path_unlocked())) {
             for dep in self.deps.iter() {
                 let dep_mtimes = match &dep.fingerprint.fs_status {
                     FsStatus::UpToDate { mtimes } => mtimes,
@@ -1194,7 +1197,7 @@ fn calculate(cx: &mut Context<'_, '_>, unit: &Unit) -> CargoResult<Arc<Fingerpri
     // After we built the initial `Fingerprint` be sure to update the
     // `fs_status` field of it.
     let target_root = target_root(cx, unit);
-    fingerprint.check_filesystem(&mut cx.mtime_cache, unit.pkg.root(), &target_root)?;
+    fingerprint.check_filesystem(cx, unit.pkg.root(), &target_root)?;
 
     let fingerprint = Arc::new(fingerprint);
     cx.fingerprints
@@ -1550,8 +1553,8 @@ pub fn dep_info_loc(cx: &mut Context<'_, '_>, unit: &Unit) -> PathBuf {
 /// Returns an absolute path that target directory.
 /// All paths are rewritten to be relative to this.
 fn target_root(cx: &Context<'_, '_>, unit: &Unit) -> PathBuf {
-    if unit.target.is_lib() && !unit.pkg.has_custom_build() {
-        PathBuf::from("/Users/hackzzila/Documents/Code/Rust/cargo-test/testdeps")
+    if cx.bcx.config.cache_dir().is_ok() && cx.bcx.config.cache_dir().unwrap().is_some() && unit.cacheable() {
+        cx.bcx.config.cache_dir().unwrap().unwrap().into_path_unlocked()
     } else {
         cx.bcx.ws.target_dir().into_path_unlocked()
     }

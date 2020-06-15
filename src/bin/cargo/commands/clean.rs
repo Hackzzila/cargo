@@ -10,6 +10,7 @@ pub fn cli() -> App {
         .arg_manifest_path()
         .arg_target_triple("Target triple to clean output for")
         .arg_target_dir()
+        .arg_cache_dir()
         .arg_release("Whether or not to clean release artifacts")
         .arg_profile("Clean artifacts of the specified profile")
         .arg_doc("Whether or not to clean just the documentation directory")

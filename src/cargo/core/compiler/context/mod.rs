@@ -11,6 +11,7 @@ use crate::util::errors::{CargoResult, CargoResultExt};
 use crate::util::profile;
 
 use super::build_plan::BuildPlan;
+use super::cache_layout::CacheLayout;
 use super::custom_build::{self, BuildDeps, BuildScriptOutputs, BuildScripts};
 use super::fingerprint::Fingerprint;
 use super::job_queue::JobQueue;
@@ -278,6 +279,7 @@ impl<'a, 'cfg> Context<'a, 'cfg> {
     pub fn prepare_units(&mut self) -> CargoResult<()> {
         let dest = self.bcx.profiles.get_dir_name();
         let host_layout = Layout::new(self.bcx.ws, None, &dest)?;
+        let cache_layout = CacheLayout::new(self)?;
         let mut targets = HashMap::new();
         for kind in self.bcx.build_config.requested_kinds.iter() {
             if let CompileKind::Target(target) = *kind {
@@ -290,7 +292,7 @@ impl<'a, 'cfg> Context<'a, 'cfg> {
 
         self.record_units_requiring_metadata();
 
-        let files = CompilationFiles::new(self, host_layout, targets);
+        let files = CompilationFiles::new(self, host_layout, targets, cache_layout);
         self.files = Some(files);
         Ok(())
     }
@@ -306,6 +308,11 @@ impl<'a, 'cfg> Context<'a, 'cfg> {
             .chain_err(|| "couldn't prepare build directories")?;
         for target in self.files.as_mut().unwrap().target.values_mut() {
             target
+                .prepare()
+                .chain_err(|| "couldn't prepare build directories")?;
+        }
+        if let Some(cache_layout) = &mut self.files_mut().cache_layout {
+            cache_layout
                 .prepare()
                 .chain_err(|| "couldn't prepare build directories")?;
         }

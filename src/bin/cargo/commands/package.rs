@@ -27,6 +27,7 @@ pub fn cli() -> App {
         ))
         .arg_target_triple("Build for the target triple")
         .arg_target_dir()
+        .arg_cache_dir()
         .arg_features()
         .arg_manifest_path()
         .arg_jobs()

@@ -148,6 +148,12 @@ pub trait AppExt: Sized {
         )
     }
 
+    fn arg_cache_dir(self) -> Self {
+        self._arg(
+            opt("cache-dir", "Directory for the global buld cache").value_name("DIRECTORY"),
+        )
+    }
+
     fn arg_manifest_path(self) -> Self {
         self._arg(opt("manifest-path", "Path to Cargo.toml").value_name("PATH"))
     }

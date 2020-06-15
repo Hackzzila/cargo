@@ -176,6 +176,7 @@ fn config_configure(
     global_args: GlobalArgs,
 ) -> CliResult {
     let arg_target_dir = &subcommand_args.value_of_path("target-dir", config);
+    let arg_cache_dir = &subcommand_args.value_of_path("cache-dir", config);
     let verbose = global_args.verbose + args.occurrences_of("verbose") as u32;
     // quiet is unusual because it is redefined in some subcommands in order
     // to provide custom help text.
@@ -202,6 +203,7 @@ fn config_configure(
         locked,
         offline,
         arg_target_dir,
+        arg_cache_dir,
         &unstable_flags,
         &config_args,
     )?;

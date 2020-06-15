@@ -8,7 +8,7 @@ use std::sync::Arc;
 use lazycell::LazyCell;
 use log::info;
 
-use super::{BuildContext, CompileKind, Context, FileFlavor, Layout};
+use super::{BuildContext, CacheLayout, CompileKind, Context, FileFlavor, Layout};
 use crate::core::compiler::{CompileMode, CompileTarget, CrateType, FileType, Unit};
 use crate::core::{Target, TargetKind, Workspace};
 use crate::util::{self, CargoResult, StableHasher};
@@ -78,6 +78,8 @@ pub struct CompilationFiles<'a, 'cfg> {
     pub(super) host: Layout,
     /// The target directory layout for the target (if different from then host).
     pub(super) target: HashMap<CompileTarget, Layout>,
+    /// The cache directory layout if it exists.
+    pub(super) cache_layout: Option<CacheLayout>,
     /// Additional directory to include a copy of the outputs.
     export_dir: Option<PathBuf>,
     /// The root targets requested by the user on the command line (does not
@@ -119,6 +121,7 @@ impl<'a, 'cfg: 'a> CompilationFiles<'a, 'cfg> {
         cx: &Context<'a, 'cfg>,
         host: Layout,
         target: HashMap<CompileTarget, Layout>,
+        cache_layout: Option<CacheLayout>,
     ) -> CompilationFiles<'a, 'cfg> {
         let mut metas = HashMap::new();
         for unit in &cx.bcx.roots {
@@ -133,6 +136,7 @@ impl<'a, 'cfg: 'a> CompilationFiles<'a, 'cfg> {
             ws: cx.bcx.ws,
             host,
             target,
+            cache_layout,
             export_dir: cx.bcx.build_config.export_dir.clone(),
             roots: cx.bcx.roots.clone(),
             metas,
@@ -208,23 +212,19 @@ impl<'a, 'cfg: 'a> CompilationFiles<'a, 'cfg> {
         self.host.deps()
     }
 
-    pub fn cacheable(&self, unit: &Unit) -> bool {
-        unit.target.is_lib() && !unit.pkg.has_custom_build()
-    }
-
     pub fn target_deps_dir(&self, unit: &Unit) -> &Path {
         self.layout(unit.kind).deps()
     }
 
-    pub fn cache_deps_dir(&self) -> &Path {
-        Path::new("/Users/hackzzila/Documents/Code/Rust/cargo-test/testdeps/deps")
+    pub fn cache_deps_dir(&self) -> Option<&Path> {
+        self.cache_layout.as_ref().map_or(None, |c| Some(c.deps()))
     }
 
     /// Returns the directories where Rust crate dependencies are found for the
     /// specified unit.
     pub fn deps_dir(&self, unit: &Unit) -> &Path {
-        if self.cacheable(unit) {
-            self.cache_deps_dir()
+        if self.cache_layout.is_some() && unit.cacheable() {
+            self.cache_deps_dir().unwrap()
         } else {
             self.target_deps_dir(unit)
         }
@@ -234,8 +234,8 @@ impl<'a, 'cfg: 'a> CompilationFiles<'a, 'cfg> {
     pub fn fingerprint_dir(&self, unit: &Unit) -> PathBuf {
         let dir = self.pkg_dir(unit);
 
-        if self.cacheable(unit) {
-            PathBuf::from("/Users/hackzzila/Documents/Code/Rust/cargo-test/testdeps/.fingerprint").join(dir)
+        if self.cache_layout.is_some() && unit.cacheable() {
+            self.cache_layout.as_ref().unwrap().fingerprint().join(dir)
         } else {
             self.layout(unit.kind).fingerprint().join(dir)
         }
