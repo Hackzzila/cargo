@@ -73,7 +73,7 @@
 
 use crate::core::compiler::Context;
 use crate::util::paths;
-use crate::util::{CargoResult, FileLock, Filesystem};
+use crate::util::{CargoResult, FileLock};
 use std::path::{Path, PathBuf};
 
 /// The cache version, make sure to increment this if you make any
@@ -107,7 +107,6 @@ impl CacheLayout {
         cx: &Context<'_, '_>,
     ) -> CargoResult<Option<CacheLayout>> {
         if let Some(root) = &cx.bcx.config.cache_dir()? {
-            // let mut root = ws.target_dir();
             let root = root.clone();
             let dest = root.join(CACHE_VERSION);
             // If the root directory doesn't already exist go ahead and create it
