@@ -357,6 +357,7 @@ pub struct CliUnstable {
     pub separate_nightlies: bool,
     pub multitarget: bool,
     pub rustdoc_map: bool,
+    pub cache: bool,
 }
 
 impl CliUnstable {
@@ -437,6 +438,7 @@ impl CliUnstable {
             "separate-nightlies" => self.separate_nightlies = parse_empty(k, v)?,
             "multitarget" => self.multitarget = parse_empty(k, v)?,
             "rustdoc-map" => self.rustdoc_map = parse_empty(k, v)?,
+            "cache" => self.cache = parse_empty(k, v)?,
             _ => bail!("unknown `-Z` flag specified: {}", k),
         }
 

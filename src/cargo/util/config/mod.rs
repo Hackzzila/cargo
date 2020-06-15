@@ -458,15 +458,19 @@ impl Config {
 
     /// The `cache` output directory to use.
     ///
-    /// Returns `None` if the user has not chosen an explicit directory.
+    /// Returns `None` if the cache is disabled.
     pub fn cache_dir(&self) -> CargoResult<Option<Filesystem>> {
-        if let Some(dir) = &self.cache_dir {
-            Ok(Some(dir.clone()))
-        } else if let Some(dir) = env::var_os("CARGO_CACHE_DIR") {
-            Ok(Some(Filesystem::new(self.cwd.join(dir))))
-        } else if let Some(val) = &self.build_config()?.cache_dir {
-            let val = val.resolve_path(self);
-            Ok(Some(Filesystem::new(val)))
+        if self.cli_unstable().cache {
+            if let Some(dir) = &self.cache_dir {
+                Ok(Some(dir.clone()))
+            } else if let Some(dir) = env::var_os("CARGO_CACHE_DIR") {
+                Ok(Some(Filesystem::new(self.cwd.join(dir))))
+            } else if let Some(val) = &self.build_config()?.cache_dir {
+                let val = val.resolve_path(self);
+                Ok(Some(Filesystem::new(val)))
+            } else {
+                Ok(Some(self.home().join("cache")))
+            }
         } else {
             Ok(None)
         }
