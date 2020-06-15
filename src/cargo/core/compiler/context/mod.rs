@@ -314,7 +314,7 @@ impl<'a, 'cfg> Context<'a, 'cfg> {
         if let Some(cache_layout) = &mut self.files_mut().cache_layout {
             cache_layout
                 .prepare()
-                .chain_err(|| "couldn't prepare build directories")?;
+                .chain_err(|| "couldn't prepare cache directories")?;
         }
 
         let files = self.files.as_ref().unwrap();

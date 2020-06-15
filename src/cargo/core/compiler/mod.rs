@@ -963,10 +963,10 @@ fn build_deps_args(
         deps
     });
 
-    if let Some(cahce_deps_dir) = cx.files().cache_deps_dir() {
+    if let Some(cache_deps_dir) = cx.files().cache_deps_dir() {
         cmd.arg("-L").arg(&{
             let mut deps = OsString::from("dependency=");
-            deps.push(cahce_deps_dir);
+            deps.push(cache_deps_dir);
             deps
         });
     }
